@@ -3,10 +3,9 @@ package com.ciprian.game;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.ScreenAdapter;
-import com.badlogic.gdx.graphics.Camera;
-import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.*;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
@@ -27,18 +26,25 @@ public class GameScreen extends ScreenAdapter {
     private Array<Flower> flowers = new Array<Flower>();
 
     //Game
-    private Flappee flappee = new Flappee();
+    private Flappee flappee;
 
     private static final float GAP_BETWEEN_FLOWERS = 200F;
+
+    //scoring
+    private int score = 0;
+    private BitmapFont bitmapFont;
+    private GlyphLayout glyphLayout;
+
+    //textures
+    private Texture background;
+    private Texture flowerBottom;
+    private Texture flowerTop;
+    private Texture flappeeTexture;
 
     @Override
     public void render(float delta) {
         clearScreen();
-        batch.setProjectionMatrix(camera.projection);
-        batch.setTransformMatrix(camera.view);
-        batch.begin();
-        batch.end();
-
+        draw();
         shapeRenderer.setProjectionMatrix(camera.projection);
         shapeRenderer.setTransformMatrix(camera.view);
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
@@ -62,7 +68,15 @@ public class GameScreen extends ScreenAdapter {
         viewport = new FitViewport(WORLD_WIDTH, WORLD_HEIGHT, camera);
         shapeRenderer = new ShapeRenderer();
         batch = new SpriteBatch();
+        flappeeTexture = new Texture(Gdx.files.internal("bee.png"));
+        flappee = new Flappee(flappeeTexture);
         flappee.setPosition(WORLD_WIDTH / 4, WORLD_HEIGHT / 2);
+        bitmapFont = new BitmapFont();
+        glyphLayout = new GlyphLayout();
+        background = new Texture(Gdx.files.internal("bg.png"));
+        flowerBottom = new Texture(Gdx.files.internal("flowerBottom.png"));
+        flowerTop = new Texture(Gdx.files.internal("flowerTop.png"));
+
     }
 
     private void clearScreen() {
@@ -71,12 +85,26 @@ public class GameScreen extends ScreenAdapter {
     }
 
     private void update(float delta) {
-        flappee.update();
+        updateFlappee(delta);
+        updateFlowers(delta);
+        updateScore();
+        if(checkForCollision()) {
+            restart();
+        }
+    }
+
+    private void updateFlappee(float delta) {
+        flappee.update(delta);
         if(Gdx.input.isKeyPressed(Input.Keys.SPACE)) {
             flappee.flyUp();
         }
         blockFlappeeLeavingTheWorld();
-        updateFlowers(delta);
+    }
+
+    private void restart() {
+        flappee.setPosition(WORLD_WIDTH / 4, WORLD_HEIGHT / 2);
+        flowers.clear();
+        score = 0;
     }
 
     private void drawDebug() {
@@ -98,7 +126,7 @@ public class GameScreen extends ScreenAdapter {
     }
 
     private void createNewFlower() {
-        Flower newFlower = new Flower();
+        Flower newFlower = new Flower(flowerBottom, flowerTop);
         newFlower.setPosition(WORLD_WIDTH + Flower.WIDTH);
         flowers.add(newFlower);
     }
@@ -122,4 +150,52 @@ public class GameScreen extends ScreenAdapter {
             }
         }
     }
+
+    private boolean checkForCollision() {
+        for(Flower flower : flowers) {
+            if(flower.isFlappeeColliding(flappee)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void updateScore() {
+        Flower flower = flowers.first();
+        if(flower.getX() < flappee.getX()
+            && !flower.isPointClaimed())
+        {
+            flower.markPointClaimed();
+            score++;
+        }
+    }
+
+    private void drawScore() {
+        String scoreAsString = Integer.toString(score);
+        glyphLayout.setText(bitmapFont,scoreAsString);
+        bitmapFont.draw(batch,
+                scoreAsString,
+                (viewport.getWorldWidth() - glyphLayout.width) / 2,
+                (4 * viewport.getWorldHeight() / 5) - glyphLayout.height / 2) ;
+    }
+
+    private void drawFlowers() {
+        for (Flower flower : flowers) {
+            flower.draw(batch);
+        }
+    }
+
+    private void draw() {
+        batch.setProjectionMatrix(camera.projection);
+        batch.setTransformMatrix(camera.view);
+        batch.begin();
+        batch.draw(background, 0, 0);
+        drawFlowers();
+        flappee.draw(batch);
+        drawScore();
+        batch.end();
+    }
+
+
+
 }
